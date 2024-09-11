@@ -16,13 +16,44 @@
 #include <sys/stat.h>
 #include <elf.h>
 
+char handle_64_letter(Elf64_Sym *symbol)
+{
+	int	maj = (ELF64_ST_BIND(symbol->st_info) == STB_GLOBAL) * 32;
+
+	if (symbol->st_shndx == SHN_UNDEF)
+		return ('U');
+	else if (symbol->st_shndx == SHN_ABS)
+		return ('a' + maj);
+	else
+		return ('?');
+}
+
+void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf64_Shdr *symTab)
+{
+	Elf64_Sym	*symbol = (void *)ptr + symTab->sh_offset;
+	const char	*strTable = (const char *)(ptr + sections[symTab->sh_link].sh_offset);
+	int			symTabSize = symTab->sh_size / symTab->sh_entsize;
+
+	for (int i = 1; i < symTabSize; i++)
+	{
+		// fprintf(stderr, "DEBUG = %4x ", symbol[i].st_shndx);
+		printf("%c %s\n", handle_64_letter(symbol + i), strTable + symbol[i].st_name);
+	}
+}
+
 void handle_64(char *ptr)
 {
-	int 				ncmds;
-	struct Elf64_Ehdr	header;
+	Elf64_Ehdr	*header = (Elf64_Ehdr *)ptr;
+	Elf64_Shdr	*sections = (void *)ptr + header->e_shoff;
 
-	header = (Elf64_Ehdr *) ptr;
-	ncmds = header.e_phnum;
+	for (unsigned long int i = 0; i < header->e_shnum; i++)
+	{
+		if (sections[i].sh_type == SHT_SYMTAB)
+		{
+			handle_64_symbols(ptr, header, sections, sections + i);
+			break ;
+		}
+	}
 }
 
 void nm(char *ptr)
@@ -32,6 +63,8 @@ void nm(char *ptr)
 	magic = *(int *)ptr;
 	if (magic == 0x464c457f) // .ELF
 		handle_64(ptr);
+	else
+		printf("Is not an ELF\n");
 }
 
 int main(int ac, char **av)
