@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   main.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: djanusz <djanusz@student.42.fr>            +#+  +:+       +#+        */
+/*   By: djanusz   <djanusz  @student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/10 21:21:43 by djanusz           #+#    #+#             */
-/*   Updated: 2024/09/10 22:02:14 by djanusz          ###   ########.fr       */
+/*   Updated: 2024/09/12 14:35:14 by djanusz          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,16 +16,78 @@
 #include <sys/stat.h>
 #include <elf.h>
 
-char handle_64_letter(Elf64_Sym *symbol)
+char print_type(Elf64_Shdr *shdr, Elf64_Sym sym)
 {
-	int	maj = (ELF64_ST_BIND(symbol->st_info) == STB_GLOBAL) * 32;
+	char c;
 
-	if (symbol->st_shndx == SHN_UNDEF)
-		return ('U');
-	else if (symbol->st_shndx == SHN_ABS)
-		return ('a' + maj);
+	if (ELF64_ST_BIND(sym.st_info) == STB_GNU_UNIQUE)
+		c = 'u';
+	else if (ELF64_ST_BIND(sym.st_info) == STB_WEAK)
+	{
+		c = 'W';
+		if (sym.st_shndx == SHN_UNDEF)
+			c = 'w';
+	}
+	else if (ELF64_ST_BIND(sym.st_info) == STB_WEAK && ELF64_ST_TYPE(sym.st_info) == STT_OBJECT)
+	{
+		c = 'V';
+		if (sym.st_shndx == SHN_UNDEF)
+			c = 'v';
+	}
+	else if (sym.st_shndx == SHN_UNDEF)
+		c = 'U';
+	else if (sym.st_shndx == SHN_ABS)
+		c = 'A';
+	else if (sym.st_shndx == SHN_COMMON)
+		c = 'C';
+	else if (shdr[sym.st_shndx].sh_type == SHT_PROGBITS && shdr[sym.st_shndx].sh_flags == (SHF_ALLOC | SHF_WRITE))
+		c = 'D';
+	else if (shdr[sym.st_shndx].sh_type == SHT_NOBITS && shdr[sym.st_shndx].sh_flags == (SHF_ALLOC | SHF_WRITE))
+		c = 'B';
+	else if (shdr[sym.st_shndx].sh_type == SHT_PROGBITS && shdr[sym.st_shndx].sh_flags == SHF_ALLOC)
+		c = 'R';
+	else if (shdr[sym.st_shndx].sh_type == SHT_PROGBITS && shdr[sym.st_shndx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR))
+		c = 'T';
+	else if (shdr[sym.st_shndx].sh_type == SHT_DYNAMIC)
+		c = 'D';
+	else if (shdr[sym.st_shndx].sh_type == SHT_NOTE)
+		c = 'R';
+	else if (shdr[sym.st_shndx].sh_type == SHT_INIT_ARRAY)
+		c = 'D';
+	else if (shdr[sym.st_shndx].sh_type == SHT_FINI_ARRAY)
+		c = 'D';
 	else
-		return ('?');
+		c = '?';
+	if (ELF64_ST_BIND(sym.st_info) == STB_LOCAL && ('A' <= c && c <= 'Z'))
+		c += 32;
+	return c;
+}
+
+char handle_64_letter(Elf64_Shdr *sections, Elf64_Sym *symbol, int index)
+{
+	// int	min = (ELF64_ST_BIND(symbol->st_info) == STB_GLOBAL) * 32;
+
+	// if (symbol->st_shndx == SHN_UNDEF)
+	// 	return ('U');
+	// else if (symbol->st_shndx == SHN_ABS)
+	// 	return ('a' + min);
+	// else
+	// 	return ('?');
+	// if (symbol->st_shndx == SHN_UNDEF) {
+	// 	return ('U' + min); // Symbole indéfini
+	// } else if (symbol->st_shndx == SHN_ABS) {
+	// 	return ('A' + min); // Symbole absolu
+	// } else if (sections[index].sh_type == SHT_NOBITS && sections[index].sh_flags & SHF_ALLOC) {
+	// 	return ('B' + min); // Symbole dans la section BSS (non initialisé)
+	// } else if (sections[index].sh_type == SHT_PROGBITS && sections[index].sh_flags & SHF_EXECINSTR) {
+	// 	return ('T' + min); // Symbole dans la section de texte (code)
+	// } else if (sections[index].sh_type == SHT_PROGBITS && sections[index].sh_flags & SHF_WRITE) {
+	// 	return ('D' + min); // Symbole dans la section de données (initialisé)
+	// } else if (sections[index].sh_type == SHT_PROGBITS && !(sections[index].sh_flags & SHF_WRITE)) {
+	// 	return ('R' + min); // Symbole en lecture seule (typiquement des constantes)
+	// } else {
+	// 	return ('?');
+	// }
 }
 
 void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf64_Shdr *symTab)
@@ -36,8 +98,8 @@ void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf6
 
 	for (int i = 1; i < symTabSize; i++)
 	{
-		// fprintf(stderr, "DEBUG = %4x ", symbol[i].st_shndx);
-		printf("%c %s\n", handle_64_letter(symbol + i), strTable + symbol[i].st_name);
+		// fprintf(stderr, "DEBUG = %d", sections[symbol[i].st_shndx].sh_type);
+		printf("%c %s\n", print_type(sections, symbol[i]), strTable + symbol[i].st_name);
 	}
 }
 
