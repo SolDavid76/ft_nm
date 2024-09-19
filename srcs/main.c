@@ -6,17 +6,24 @@
 /*   By: djanusz   <djanusz  @student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/10 21:21:43 by djanusz           #+#    #+#             */
-/*   Updated: 2024/09/12 14:35:14 by djanusz          ###   ########.fr       */
+/*   Updated: 2024/09/19 16:28:33 by djanusz          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <elf.h>
 
-char print_type(Elf64_Shdr *shdr, Elf64_Sym sym)
+typedef struct s_symbol
+{
+	char	symbolType;
+	char	*line;
+}			t_symbol;
+
+char getSymbolType(Elf64_Shdr *shdr, Elf64_Sym sym)
 {
 	char c;
 
@@ -63,44 +70,103 @@ char print_type(Elf64_Shdr *shdr, Elf64_Sym sym)
 	return c;
 }
 
-char handle_64_letter(Elf64_Shdr *sections, Elf64_Sym *symbol, int index)
+int ft_strlen(char *str)
 {
-	// int	min = (ELF64_ST_BIND(symbol->st_info) == STB_GLOBAL) * 32;
+	int i = 0;
 
-	// if (symbol->st_shndx == SHN_UNDEF)
-	// 	return ('U');
-	// else if (symbol->st_shndx == SHN_ABS)
-	// 	return ('a' + min);
-	// else
-	// 	return ('?');
-	// if (symbol->st_shndx == SHN_UNDEF) {
-	// 	return ('U' + min); // Symbole indéfini
-	// } else if (symbol->st_shndx == SHN_ABS) {
-	// 	return ('A' + min); // Symbole absolu
-	// } else if (sections[index].sh_type == SHT_NOBITS && sections[index].sh_flags & SHF_ALLOC) {
-	// 	return ('B' + min); // Symbole dans la section BSS (non initialisé)
-	// } else if (sections[index].sh_type == SHT_PROGBITS && sections[index].sh_flags & SHF_EXECINSTR) {
-	// 	return ('T' + min); // Symbole dans la section de texte (code)
-	// } else if (sections[index].sh_type == SHT_PROGBITS && sections[index].sh_flags & SHF_WRITE) {
-	// 	return ('D' + min); // Symbole dans la section de données (initialisé)
-	// } else if (sections[index].sh_type == SHT_PROGBITS && !(sections[index].sh_flags & SHF_WRITE)) {
-	// 	return ('R' + min); // Symbole en lecture seule (typiquement des constantes)
-	// } else {
-	// 	return ('?');
-	// }
+	while (str[i])
+		i++;
+	return (i);
+}
+
+char *ft_strjoin(char c, char *str)
+{
+	char	*res;
+	int		i;
+
+	res = malloc(sizeof(char) * (ft_strlen(str) + 3));
+	res[0] = c;
+	res[1] = ' ';
+	for (i = 0; str[i]; i++)
+		res[i + 2] = str[i];
+	res[i + 2] = '\0';
+	return (res);
+}
+
+void ft_swap(t_symbol *ptr1, t_symbol *ptr2)
+{
+	t_symbol tmp;
+
+	tmp = *ptr1;
+	*ptr1 = *ptr2;
+	*ptr2 = tmp;
+}
+
+int	ft_strcmp(char *str1, char *str2)
+{
+	int	i = 0;
+
+	while (str1[i] && str1[i] == str2[i])
+		i++;
+	return (str1[i] - str2[i]);
+}
+
+t_symbol *handle_64_symbols_sort(t_symbol *tab, int tabSize)
+{
+	for (int i = 0; i < tabSize - 1; i++)
+	{
+		for (int j = i + 1; j < tabSize - 1; j++)
+		{
+			int k = 0, l = 0;
+			while (tab[i].line[k] && tab[i].line[k] =='_')
+				k++;
+			while (tab[j].line[l] && tab[j].line[l] == '_')
+				l++;
+
+			if (('a' <= tab[i].line[k] && tab[i].line[k] <= 'z') && ('a' <= tab[j].line[l] && tab[j].line[l] <= 'z'))
+			{
+				if (ft_strcmp(tab[i].line + k, tab[j].line + l) > 0)
+					ft_swap(&tab[i], &tab[j]);
+			}
+			else if (('A' <= tab[i].line[k] && tab[i].line[k] <= 'Z') && ('A' <= tab[j].line[l] && tab[j].line[l] <= 'Z'))
+			{
+				if (ft_strcmp(tab[i].line + k, tab[j].line + l) > 0)
+					ft_swap(&tab[i], &tab[j]);
+			}
+			else
+			{
+				if ('A' <= tab[i].line[k] && tab[i].line[k] <= 'Z')
+				{
+					if (tab[i].line[k] + 32 >= tab[j].line[l])
+						ft_swap(&tab[i], &tab[j]);
+				}
+				else
+				{
+					if (tab[i].line[k] > tab[j].line[l] + 32)
+						ft_swap(&tab[i], &tab[j]);
+				}
+			}
+		}
+	}
+	return (tab);
 }
 
 void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf64_Shdr *symTab)
 {
 	Elf64_Sym	*symbol = (void *)ptr + symTab->sh_offset;
-	const char	*strTable = (const char *)(ptr + sections[symTab->sh_link].sh_offset);
+	char	*strTable = (char *)(ptr + sections[symTab->sh_link].sh_offset);
 	int			symTabSize = symTab->sh_size / symTab->sh_entsize;
+
+	t_symbol	*tab = malloc(symTabSize * sizeof(t_symbol));
 
 	for (int i = 1; i < symTabSize; i++)
 	{
-		// fprintf(stderr, "DEBUG = %d", sections[symbol[i].st_shndx].sh_type);
-		printf("%c %s\n", print_type(sections, symbol[i]), strTable + symbol[i].st_name);
+		tab[i - 1].symbolType = getSymbolType(sections, symbol[i]);
+		tab[i - 1].line = strTable + symbol[i].st_name;
 	}
+	handle_64_symbols_sort(tab, symTabSize);
+	for (int i = 0; i < symTabSize - 1; i++)
+		printf("%s\n", tab[i].line);
 }
 
 void handle_64(char *ptr)
