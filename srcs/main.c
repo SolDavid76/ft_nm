@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   main.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: djanusz   <djanusz  @student.42.fr>        +#+  +:+       +#+        */
+/*   By: djanusz <djanusz@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/10 21:21:43 by djanusz           #+#    #+#             */
-/*   Updated: 2024/09/19 16:28:33 by djanusz          ###   ########.fr       */
+/*   Updated: 2024/09/21 19:01:12 by djanusz          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,8 +19,9 @@
 
 typedef struct s_symbol
 {
-	char	symbolType;
-	char	*line;
+	int		adress;
+	char	type;
+	char	*name;
 }			t_symbol;
 
 char getSymbolType(Elf64_Shdr *shdr, Elf64_Sym sym)
@@ -118,31 +119,31 @@ t_symbol *handle_64_symbols_sort(t_symbol *tab, int tabSize)
 		for (int j = i + 1; j < tabSize - 1; j++)
 		{
 			int k = 0, l = 0;
-			while (tab[i].line[k] && tab[i].line[k] =='_')
+			while (tab[i].name[k] && tab[i].name[k] =='_')
 				k++;
-			while (tab[j].line[l] && tab[j].line[l] == '_')
+			while (tab[j].name[l] && tab[j].name[l] == '_')
 				l++;
 
-			if (('a' <= tab[i].line[k] && tab[i].line[k] <= 'z') && ('a' <= tab[j].line[l] && tab[j].line[l] <= 'z'))
+			if (('a' <= tab[i].name[k] && tab[i].name[k] <= 'z') && ('a' <= tab[j].name[l] && tab[j].name[l] <= 'z'))
 			{
-				if (ft_strcmp(tab[i].line + k, tab[j].line + l) > 0)
+				if (ft_strcmp(tab[i].name + k, tab[j].name + l) > 0)
 					ft_swap(&tab[i], &tab[j]);
 			}
-			else if (('A' <= tab[i].line[k] && tab[i].line[k] <= 'Z') && ('A' <= tab[j].line[l] && tab[j].line[l] <= 'Z'))
+			else if (('A' <= tab[i].name[k] && tab[i].name[k] <= 'Z') && ('A' <= tab[j].name[l] && tab[j].name[l] <= 'Z'))
 			{
-				if (ft_strcmp(tab[i].line + k, tab[j].line + l) > 0)
+				if (ft_strcmp(tab[i].name + k, tab[j].name + l) > 0)
 					ft_swap(&tab[i], &tab[j]);
 			}
 			else
 			{
-				if ('A' <= tab[i].line[k] && tab[i].line[k] <= 'Z')
+				if ('A' <= tab[i].name[k] && tab[i].name[k] <= 'Z')
 				{
-					if (tab[i].line[k] + 32 >= tab[j].line[l])
+					if (tab[i].name[k] + 32 >= tab[j].name[l])
 						ft_swap(&tab[i], &tab[j]);
 				}
 				else
 				{
-					if (tab[i].line[k] > tab[j].line[l] + 32)
+					if (tab[i].name[k] > tab[j].name[l] + 32)
 						ft_swap(&tab[i], &tab[j]);
 				}
 			}
@@ -154,19 +155,22 @@ t_symbol *handle_64_symbols_sort(t_symbol *tab, int tabSize)
 void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf64_Shdr *symTab)
 {
 	Elf64_Sym	*symbol = (void *)ptr + symTab->sh_offset;
-	char	*strTable = (char *)(ptr + sections[symTab->sh_link].sh_offset);
+	char		*strTable = (char *)(ptr + sections[symTab->sh_link].sh_offset);
 	int			symTabSize = symTab->sh_size / symTab->sh_entsize;
 
 	t_symbol	*tab = malloc(symTabSize * sizeof(t_symbol));
 
 	for (int i = 1; i < symTabSize; i++)
 	{
-		tab[i - 1].symbolType = getSymbolType(sections, symbol[i]);
-		tab[i - 1].line = strTable + symbol[i].st_name;
+		tab[i - 1].adress = symbol[i].st_value;
+		tab[i - 1].type = getSymbolType(sections, symbol[i]);
+		tab[i - 1].name = strTable + symbol[i].st_name;
 	}
+
 	handle_64_symbols_sort(tab, symTabSize);
+
 	for (int i = 0; i < symTabSize - 1; i++)
-		printf("%s\n", tab[i].line);
+		printf("%x %c %s\n", tab[i].adress, tab[i].type, tab[i].name);
 }
 
 void handle_64(char *ptr)
@@ -186,9 +190,8 @@ void handle_64(char *ptr)
 
 void nm(char *ptr)
 {
-	int magic;
+	int magic = *(int *)ptr;
 
-	magic = *(int *)ptr;
 	if (magic == 0x464c457f) // .ELF
 		handle_64(ptr);
 	else
