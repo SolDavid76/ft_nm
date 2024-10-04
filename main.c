@@ -6,7 +6,7 @@
 /*   By: djanusz   <djanusz  @student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/10 21:21:43 by djanusz           #+#    #+#             */
-/*   Updated: 2024/09/26 15:44:59 by djanusz          ###   ########.fr       */
+/*   Updated: 2024/10/04 15:45:01 by djanusz          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -90,20 +90,6 @@ int ft_strlen(char *str)
 	return (i);
 }
 
-char *ft_strjoin(char c, char *str)
-{
-	char *res;
-	int  i;
-
-	res = malloc(sizeof(char) * (ft_strlen(str) + 3));
-	res[0] = c;
-	res[1] = ' ';
-	for (i = 0; str[i]; i++)
-		res[i + 2] = str[i];
-	res[i + 2] = '\0';
-	return (res);
-}
-
 void ft_swap(t_symbol *ptr1, t_symbol *ptr2)
 {
 	t_symbol tmp;
@@ -129,15 +115,18 @@ char *ft_strdup(char *str)
 
 char *minimalize(char *str)
 {
-	char *res = malloc(sizeof(char) * ft_strlen((str) + 1));
+	int   i = 0;
+	char *res = malloc(sizeof(char) * (ft_strlen(str) + 1));
 
-	for (int i = 0; str[i]; i++)
+	while (str[i])
 	{
 		if ('A' <= str[i] && str[i] <= 'Z')
 			res[i] = str[i] + 32;
 		else
 			res[i] = str[i];
+		i++;
 	}
+	res[i] = '\0';
 	return (res);
 }
 
@@ -145,22 +134,22 @@ int ft_strcmp(const char *s1, const char *s2)
 {
     int	i = 0, j = 0;
 
-    while (s1[i] && s2[j] && (s1[i] == s2[j] || (s1[i] == '_' || s2[j] == '_')))
+    while (s1[i] && s2[j] && (s1[i] == s2[j] || (s1[i] == '_' || s2[j] == '_') || (s1[i] == '@' || s2[j] == '@')))
     {
-        if (s1[i] != '_' && s2[j] != '_') 
+        if ((s1[i] != '_' && s2[j] != '_') && (s1[i] != '@' && s2[j] != '@'))
         {
             i++;
             j++;
         }
         else
         {
-            if (s1[i] == '_')
+            if (s1[i] == '_' || s1[i] == '@')
                 i++;
-            if (s2[j] == '_')
+            if (s2[j] == '_' || s2[j] == '@')
                 j++;
         }
     }
-    return ((unsigned char)s1[i] - (unsigned char)s2[j]);
+    return (s1[i] - s2[j]);
 }
 
 t_symbol *handle_64_symbols_sort(t_symbol *tab, int tabSize)
@@ -213,6 +202,56 @@ t_symbol *handle_64_symbols_sort(t_symbol *tab, int tabSize)
 	return (tab);
 }
 
+t_symbol *handle_64_symbols_reverse_sort(t_symbol *tab, int tabSize)
+{
+	for (int i = 0; i < tabSize - 1; i++)
+	{
+		for (int j = i + 1; j < tabSize - 1; j++)
+		{
+			int k = 0, l = 0;
+			while (tab[i].name[k] && tab[i].name[k] =='_')
+				k++;
+			while (tab[j].name[l] && tab[j].name[l] == '_')
+				l++;
+
+			if (ft_strcmp(tab[i].name, tab[j].name) == 0 && tab[i].type == tab[j].type && tab[i].adress > tab[j].adress)
+				ft_swap(&tab[i], &tab[j]);
+			else if (ft_strcmp(tab[i].name, tab[j].name) == 0 && tab[i].type < tab[j].type)
+				ft_swap(&tab[i], &tab[j]);
+			else if (ft_strcmp(tab[i].name_min + k, tab[j].name_min + l) == 0 && k > l)
+				ft_swap(&tab[i], &tab[j]);
+			else if (('a' <= tab[i].name[k] && tab[i].name[k] <= 'z') && ('a' <= tab[j].name[l] && tab[j].name[l] <= 'z'))
+			{
+				if (ft_strcmp(tab[i].name_min + k, tab[j].name_min + l) < 0)
+					ft_swap(&tab[i], &tab[j]);
+			}
+			else if (('A' <= tab[i].name[k] && tab[i].name[k] <= 'Z') && ('A' <= tab[j].name[l] && tab[j].name[l] <= 'Z'))
+			{
+				if (ft_strcmp(tab[i].name_min + k, tab[j].name_min + l) < 0)
+					ft_swap(&tab[i], &tab[j]);
+			}
+			else
+			{
+				if ('A' <= tab[i].name[k] && tab[i].name[k] <= 'Z')
+				{
+					if (tab[i].name[k] + 32 == tab[j].name[l] && ft_strcmp(tab[i].name_min + k + 1, tab[j].name_min + l + 1) < 0)
+						ft_swap(&tab[i], &tab[j]);
+					else if (tab[i].name[k] + 32 < tab[j].name[l])
+						ft_swap(&tab[i], &tab[j]);
+				}
+				else
+				{
+					if (tab[i].name[k] == tab[j].name[l] + 32 && ft_strcmp(tab[i].name_min + k + 1, tab[j].name_min + l + 1) < 0)
+						ft_swap(&tab[i], &tab[j]);
+					else if (tab[i].name[k] < tab[j].name[l] + 32)
+						ft_swap(&tab[i], &tab[j]);
+				}
+			}
+		}
+	}
+	return (tab);
+}
+
 int hexalen(int value)
 {
 	int res = 1;
@@ -255,51 +294,34 @@ void print_64_symbol(t_symbol *symbol)
 
 void print_64_symbols(t_symbol *tab, int tabSize)
 {
-	if (!(flags & REVERSE_SORT))
+	for (int i = 0; i < tabSize - 1; i++)
 	{
-		for (int i = 0; i < tabSize - 1; i++)
+		if (flags & PRINT_ALL)
+			print_64_symbol(&tab[i]);
+		else if (flags & PRINT_EXTERN)
 		{
-			if (flags & PRINT_ALL)
+			if (('A' <= tab[i].type && tab[i].type <= 'Z') || tab[i].type == 'v' || tab[i].type == 'w')
 				print_64_symbol(&tab[i]);
-			else if (flags & PRINT_EXTERN)
-			{
-				if (('A' <= tab[i].type && tab[i].type <= 'Z') || tab[i].type == 'u' || tab[i].type == 'v' || tab[i].type == 'w')
-					print_64_symbol(&tab[i]);
-			}
-			else if (flags & PRINT_UNDEF)
-			{
-				if (tab[i].type == 'U' || tab[i].type == 'v' || tab[i].type == 'w')
-					print_64_symbol(&tab[i]);
-			}
-			else
-			{
-				if (tab[i].type != 'a')
-					print_64_symbol(&tab[i]);
-			}
+		}
+		else if (flags & PRINT_UNDEF)
+		{
+			if (tab[i].type == 'U' || tab[i].type == 'v' || tab[i].type == 'w')
+				print_64_symbol(&tab[i]);
+		}
+		else
+		{
+			if (tab[i].type != 'a')
+				print_64_symbol(&tab[i]);
 		}
 	}
-	else
+}
+
+void free_all(t_symbol *tab, int size)
+{
+	for (int i = 0; i < size - 1; i++)
 	{
-		for (int i = tabSize - 1 ; i > 0; i--)
-		{
-			if (flags & PRINT_ALL)
-				print_64_symbol(&tab[i]);
-			else if (flags & PRINT_EXTERN)
-			{
-				if (('A' <= tab[i].type && tab[i].type <= 'Z') || tab[i].type == 'u' || tab[i].type == 'v' || tab[i].type == 'w')
-					print_64_symbol(&tab[i]);
-			}
-			else if (flags & PRINT_UNDEF)
-			{
-				if (tab[i].type == 'U' || tab[i].type == 'v' || tab[i].type == 'w')
-					print_64_symbol(&tab[i]);
-			}
-			else
-			{
-				if (tab[i].type != 'a')
-					print_64_symbol(&tab[i]);
-			}
-		}
+		free(tab[i].name);
+		free(tab[i].name_min);
 	}
 }
 
@@ -307,6 +329,7 @@ void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf6
 {
 	Elf64_Sym *symbol = (void *)ptr + symTab->sh_offset;
 	char      *strTable = (char *)(ptr + sections[symTab->sh_link].sh_offset);
+	char      *shStrTable = (char *)(ptr + sections[header->e_shstrndx].sh_offset);
 	int        symTabSize = symTab->sh_size / symTab->sh_entsize;
 
 	t_symbol  *tab = malloc(symTabSize * sizeof(t_symbol));
@@ -318,13 +341,19 @@ void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf6
 		tab[i - 1].name = ft_strdup(strTable + symbol[i].st_name);
 		tab[i - 1].name_min = minimalize(tab[i - 1].name);
 	}
+// else
+// 	tab[i - 1].name = ft_strdup(shStrTable + symbol[i].st_name); //symbol[i].st_shndx
 
 	if (!(flags & NO_SORT))
-		handle_64_symbols_sort(tab, symTabSize);
-
+	{
+		if(!(flags & REVERSE_SORT))
+			handle_64_symbols_sort(tab, symTabSize);
+		else
+			handle_64_symbols_reverse_sort(tab, symTabSize);
+	}
 	print_64_symbols(tab, symTabSize);
 
-	//free tab here
+	free_all(tab, symTabSize);
 	exit(0);
 }
 
@@ -358,7 +387,7 @@ int ft_nbFiles(char **tab)
 
 	for (int i = 0; tab[i]; i++)
 	{
-		if (tab[i][0] != '-')
+		if (tab[i][0] != '-' || tab[i][1] == '\0')
 			res++;
 	}
 	return (res);
@@ -368,7 +397,7 @@ void parse_flag(char **tab)
 {
 	for (int i = 0; tab[i]; i++)
 	{
-		for (int j = 1; tab[i][0] == '-' && tab[i][j]; j++)
+		for (int j = 1; tab[i][0] == '-' && (tab[i][1] != '-' || tab[i][2] == '-') && tab[i][j]; j++)
 		{
 			if (tab[i][j] == 'p')
 				flags |= NO_SORT;
@@ -388,11 +417,11 @@ void parse_flag(char **tab)
 				write(2, "Usage: ft_nm [option(s)] [file(s)]\n", 35);
 				write(2, "List symbols in [file(s)] (a.out by default).\n", 46);
 				write(2, "The options are:\n", 18);
-				write(2, "-a,                    Display debugger-only symbols\n", 53);
-				write(2, "-g,                    Display only external symbols\n", 53);
-				write(2, "-p,                    Do not sort the symbols\n", 47);
-				write(2, "-r,                    Reverse the sense of the sort\n", 53);
-				write(2, "-u,                    Display only undefined symbols\n", 54);
+				write(2, "-a                     Display debugger-only symbols\n", 53);
+				write(2, "-g                     Display only external symbols\n", 53);
+				write(2, "-p                     Do not sort the symbols\n", 47);
+				write(2, "-r                     Reverse the sense of the sort\n", 53);
+				write(2, "-u                     Display only undefined symbols\n", 54);
 				exit(1);
 			}
 		}
@@ -406,6 +435,7 @@ int main(int ac, char **av)
 	struct stat buf;
 
 	int         nbFiles = ft_nbFiles(av + 1);
+	dprintf(2, "%d\n", nbFiles);
 
 	parse_flag(av + 1);
 
@@ -415,7 +445,7 @@ int main(int ac, char **av)
 	{
 		for (int i = 1; i < ac; i++)
 		{
-			if (av[i][0] != '-')
+			if (av[i][0] != '-' || av[i][1] == '\0')
 			{
 				if ((fd = open(av[i], O_RDONLY)) < 0)
 					printf("Can't open file\n");
@@ -429,6 +459,8 @@ int main(int ac, char **av)
 					munmap(ptr, buf.st_size);
 				}
 			}
+			else
+				printf("oops\n");
 		}
 	}
 	return (0);
