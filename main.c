@@ -6,7 +6,7 @@
 /*   By: djanusz   <djanusz  @student.42.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/09/10 21:21:43 by djanusz           #+#    #+#             */
-/*   Updated: 2024/10/04 15:45:01 by djanusz          ###   ########.fr       */
+/*   Updated: 2024/10/08 12:10:12 by djanusz          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@
 
 typedef struct s_symbol
 {
+	int  is_undef;
 	int  adress;
 	char type;
 	char *name;
@@ -134,18 +135,18 @@ int ft_strcmp(const char *s1, const char *s2)
 {
     int	i = 0, j = 0;
 
-    while (s1[i] && s2[j] && (s1[i] == s2[j] || (s1[i] == '_' || s2[j] == '_') || (s1[i] == '@' || s2[j] == '@')))
+    while (s1[i] && s2[j] && (s1[i] == s2[j] || (s1[i] == '_' || s2[j] == '_') || (s1[i] == '@' || s2[j] == '@') || (s1[i] == '.' || s2[j] == '.')))
     {
-        if ((s1[i] != '_' && s2[j] != '_') && (s1[i] != '@' && s2[j] != '@'))
+        if ((s1[i] != '_' && s2[j] != '_') && (s1[i] != '@' && s2[j] != '@') && (s1[i] != '.' && s2[j] != '.'))
         {
             i++;
             j++;
         }
         else
         {
-            if (s1[i] == '_' || s1[i] == '@')
+            if (s1[i] == '_' || s1[i] == '@' || s1[i] == '.')
                 i++;
-            if (s2[j] == '_' || s2[j] == '@')
+            if (s2[j] == '_' || s2[j] == '@' || s2[j] == '.')
                 j++;
         }
     }
@@ -277,7 +278,7 @@ void ft_putnbr_base(unsigned int nb, char *base)
 
 void print_64_symbol(t_symbol *symbol)
 {
-	if (symbol->type != 'U' && (symbol->adress != 0 || symbol->type == 'a'))
+	if (!symbol->is_undef)
 	{
 		for (int j = hexalen(symbol->adress); j < 16; j++)
 			write(1, "0", 1);
@@ -296,21 +297,23 @@ void print_64_symbols(t_symbol *tab, int tabSize)
 {
 	for (int i = 0; i < tabSize - 1; i++)
 	{
-		if (flags & PRINT_ALL)
-			print_64_symbol(&tab[i]);
-		else if (flags & PRINT_EXTERN)
+		if (flags & PRINT_UNDEF)
 		{
-			if (('A' <= tab[i].type && tab[i].type <= 'Z') || tab[i].type == 'v' || tab[i].type == 'w')
+			if ((tab[i].type == 'U' || tab[i].type == 'v' || tab[i].type == 'w') && tab[i].name[0] != '.')
 				print_64_symbol(&tab[i]);
 		}
-		else if (flags & PRINT_UNDEF)
+		else if (flags & PRINT_EXTERN)
 		{
-			if (tab[i].type == 'U' || tab[i].type == 'v' || tab[i].type == 'w')
+			if ((('A' <= tab[i].type && tab[i].type <= 'Z') || tab[i].type == 'v' || tab[i].type == 'w') && tab[i].name[0] != '.')
 				print_64_symbol(&tab[i]);
+		}
+		else if (flags & PRINT_ALL)
+		{
+			print_64_symbol(&tab[i]);
 		}
 		else
 		{
-			if (tab[i].type != 'a')
+			if (tab[i].type != 'a' && tab[i].name[0] != '.')
 				print_64_symbol(&tab[i]);
 		}
 	}
@@ -336,13 +339,16 @@ void handle_64_symbols(char *ptr, Elf64_Ehdr *header, Elf64_Shdr *sections, Elf6
 
 	for (int i = 1; i < symTabSize; i++)
 	{
+		printf("#DEBUG: %d\n", ELF64_ST_TYPE(symbol[i].st_info));
+		tab[i - 1].is_undef = symbol[i].st_shndx == SHN_UNDEF;
 		tab[i - 1].adress = symbol[i].st_value;
 		tab[i - 1].type = getSymbolType(sections, symbol[i]);
-		tab[i - 1].name = ft_strdup(strTable + symbol[i].st_name);
+		if (symbol[i].st_info == STT_SECTION)
+			tab[i - 1].name = ft_strdup(shStrTable + sections[symbol[i].st_shndx].sh_name);
+		else
+			tab[i - 1].name = ft_strdup(strTable + symbol[i].st_name);
 		tab[i - 1].name_min = minimalize(tab[i - 1].name);
 	}
-// else
-// 	tab[i - 1].name = ft_strdup(shStrTable + symbol[i].st_name); //symbol[i].st_shndx
 
 	if (!(flags & NO_SORT))
 	{
@@ -435,7 +441,6 @@ int main(int ac, char **av)
 	struct stat buf;
 
 	int         nbFiles = ft_nbFiles(av + 1);
-	dprintf(2, "%d\n", nbFiles);
 
 	parse_flag(av + 1);
 
